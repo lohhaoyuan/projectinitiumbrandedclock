@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Countdown Timer</title>
+  <style>
+    * {
+        font-family: 'Helvetica Neue';
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: #f0f0f0;
+      font-family: Arial, sans-serif;
+    }
+    #timer {
+      font-size: 20rem;
+      font-weight:500;
+      cursor: pointer;
+      user-select: none;
+    }
+    #controls {
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1.5rem;
+      margin: 0 10px;
+      cursor: pointer;
+      background-color: #f0f0f0;
+        border: 2px solid #333;
+        border-radius: 5%;
+
+    }
+    button:hover{
+        background-color: #333;
+        color: #fff;
+        animation-timing-function: ease-in-out;
+        animation-duration: 0.5s;
+    }
+  </style>
+</head>
+<body>
+  <div id="timer">00:00</div>
+  <div id="controls">
+    <button id="startStop">Start</button>
+  </div>
+
+  <script>
+    let duration = 0;
+    let remaining = 0;
+    let interval = null;
+    let running = false;
+
+    const timerDisplay = document.getElementById('timer');
+    const startStopBtn = document.getElementById('startStop');
+
+    function formatTime(seconds) {
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function updateDisplay() {
+      timerDisplay.textContent = formatTime(remaining);
+    }
+
+    function startTimer() {
+      if (remaining <= 0) return;
+      interval = setInterval(() => {
+        remaining--;
+        updateDisplay();
+        if (remaining <= 0) {
+          clearInterval(interval);
+          running = false;
+          startStopBtn.textContent = 'Start';
+        }
+      }, 1000);
+    }
+
+    timerDisplay.addEventListener('click', () => {
+      if (running) return;
+      const input = prompt('Enter countdown time in seconds:');
+      const value = parseInt(input);
+      if (!isNaN(value) && value > 0) {
+        duration = value;
+        remaining = duration;
+        updateDisplay();
+      }
+    });
+
+    startStopBtn.addEventListener('click', () => {
+      if (running) {
+        clearInterval(interval);
+        startStopBtn.textContent = 'Start';
+      } else {
+        startTimer();
+        startStopBtn.textContent = 'Stop';
+      }
+      running = !running;
+    });
+  </script>
+</body>
+</html>
