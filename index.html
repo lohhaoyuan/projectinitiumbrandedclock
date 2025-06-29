@@ -1,125 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Countdown Timer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500&display=swap" rel="stylesheet">
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Canvas Bouncing Timer</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body {
-      position: relative;
-      overflow: hidden;
-      width: 100vw;
-      height: 100vh;
-      background: #f0f0f0;
-      font-family: 'Inter', sans-serif;
+    html, body { width:100%; height:100%; overflow:hidden; }
+    canvas { display:block; background:#f0f0f0; }
+    #startStop {
+      position:absolute; bottom:20px; left:50%;
+      transform:translateX(-50%);
+      padding:10px 20px; font-size:1.2rem;
+      border:2px solid #333; border-radius:5%;
+      background:#f0f0f0; cursor:pointer;
     }
-    #timer {
-      position: absolute;
-      top: 0;
-      left: 0;
-      font-size: 20rem;
-      font-weight: 500;
-      cursor: pointer;
-      user-select: none;
-      color: #333;
-    }
-    #controls {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 1.5rem;
-      margin: 0 10px;
-      cursor: pointer;
-      background-color: #f0f0f0;
-      border: 2px solid #333;
-      border-radius: 5%;
-      transition: background .3s, color .3s;
-    }
-    button:hover {
-      background-color: #333;
-      color: #fff;
-    }
+    #startStop:hover { background:#333; color:#fff; }
   </style>
 </head>
 <body>
-  <div id="timer">00:00</div>
-  <div id="controls">
-    <button id="startStop">Start</button>
-  </div>
+  <canvas id="c"></canvas>
+  <button id="startStop">Start</button>
   <script>
-    // countdown logic
-    let duration = 0, remaining = 0, interval = null, running = false;
-    const timerDisplay = document.getElementById('timer');
-    const startStopBtn  = document.getElementById('startStop');
-    function formatTime(s){
-      const m = String(Math.floor(s/60)).padStart(2,'0');
-      const sec = String(s%60).padStart(2,'0');
-      return `${m}:${sec}`;
+    const canvas = document.getElementById('c');
+    const ctx    = canvas.getContext('2d');
+    let W, H;
+    function resize(){
+      W = canvas.width  = innerWidth;
+      H = canvas.height = innerHeight;
     }
-    function updateDisplay(){
-      timerDisplay.textContent = formatTime(remaining);
-    }
-    function startTimer(){
-      if (remaining<=0) return;
-      interval = setInterval(()=>{
-        remaining--;
-        updateDisplay();
-        if (remaining<=0){
-          clearInterval(interval);
-          running=false;
-          startStopBtn.textContent='Start';
-        }
-      },1000);
-    }
-    timerDisplay.addEventListener('click',()=>{
-      if (running) return;
-      const input = prompt('Enter countdown time in seconds:');
-      const v = parseInt(input);
-      if (!isNaN(v) && v>0){
-        duration=v;
-        remaining=v;
-        updateDisplay();
-      }
-    });
-    startStopBtn.addEventListener('click',()=>{
-      if (running){
-        clearInterval(interval);
-        startStopBtn.textContent='Start';
+    window.addEventListener('resize', resize);
+    resize();
+
+    // timer state
+    let duration = 0, remaining = 0, running = false, tick = null;
+    const btn = document.getElementById('startStop');
+
+    btn.addEventListener('click', () => {
+      if (running) {
+        clearInterval(tick);
+        btn.textContent = 'Start';
       } else {
-        startTimer();
-        startStopBtn.textContent='Stop';
+        if (remaining <= 0) return;
+        tick = setInterval(() => {
+          remaining--;
+          if (remaining <= 0) {
+            clearInterval(tick);
+            running = false;
+            btn.textContent = 'Start';
+          }
+        }, 1000);
+        btn.textContent = 'Stop';
       }
       running = !running;
     });
 
-    // DVD‐bounce logic
-    let x=0, y=0, dirX=1, dirY=1, speed=2;
-    function animate(){
-      const cw = timerDisplay.clientWidth, ch = timerDisplay.clientHeight;
-      const ww = window.innerWidth, wh = window.innerHeight;
-      // bounce X
-      if (x + cw >= ww || x <= 0) dirX *= -1;
-      // bounce Y
-      if (y + ch >= wh || y <= 0) dirY *= -1;
-      // move
-      x += dirX * speed;
-      y += dirY * speed;
-      timerDisplay.style.left = x + 'px';
-      timerDisplay.style.top  = y + 'px';
-      requestAnimationFrame(animate);
+    canvas.addEventListener('click', () => {
+      if (running) return;
+      const v = parseInt(prompt('Enter countdown in seconds:'), 10);
+      if (!isNaN(v) && v > 0) remaining = duration = v;
+    });
+
+    // bounce state (start away from corner)
+    let x = 100, y = 100, dx = 2, dy = 2;
+    const fontSize = 100;
+
+    function format(s){
+      const m = String(Math.floor(s/60)).padStart(2,'0');
+      const sec = String(s%60).padStart(2,'0');
+      return `${m}:${sec}`;
     }
 
-    // kick everything off
-    updateDisplay();
-    animate();
+    function draw(){
+      ctx.clearRect(0, 0, W, H);
+      const txt = format(remaining);
+      ctx.font = `${fontSize}px Inter, sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = '#333';
+      const tw = ctx.measureText(txt).width;
+      const th = fontSize;
+
+      // only flip when about to go outwards
+      if (x + tw >= W && dx > 0) dx = -dx;
+      if (x <= 0     && dx < 0) dx = -dx;
+      if (y + th >= H && dy > 0) dy = -dy;
+      if (y <= 0     && dy < 0) dy = -dy;
+
+      x += dx;
+      y += dy;
+      ctx.fillText(txt, x, y);
+    }
+
+    (function loop(){
+      draw();
+      requestAnimationFrame(loop);
+    })();
   </script>
 </body>
 </html>
