@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Spinning Glitch Trail Timer with Keyboard Input</title>
+<title>Editable Spinning Timer with Blurred Shadow</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box }
   html, body { width:100%; height:100%; overflow:hidden }
@@ -32,13 +32,13 @@ window.addEventListener('resize', () => {
 });
 window.dispatchEvent(new Event('resize'));
 
-// countdown state
+// state
 let duration = 0, remaining = 0;
 let running = false, tick;
 let editing = false;
 let inputBuffer = '';
 
-// start/stop helpers
+// controls
 function startTimer() {
   if (remaining <= 0) return;
   running = true;
@@ -53,14 +53,11 @@ function stopTimer() {
   clearInterval(tick);
   btn.textContent = 'Start';
 }
-
 btn.addEventListener('click', () => {
-  if (running) stopTimer(); else {
-    if (remaining > 0) startTimer();
-  }
+  if (running) stopTimer(); else if (remaining > 0) startTimer();
 });
 
-// keyboard support
+// keyboard input
 window.addEventListener('keydown', e => {
   if (e.code === 'Space') {
     e.preventDefault();
@@ -85,7 +82,6 @@ window.addEventListener('keydown', e => {
     }
   }
 });
-
 function updateFromBuffer() {
   const v = parseInt(inputBuffer || '0', 10);
   const m = Math.floor(v / 100);
@@ -93,27 +89,19 @@ function updateFromBuffer() {
   duration = remaining = m * 60 + s;
 }
 
-// movement
+// movement & visuals
 let x = 100, y = 100, dx = 2, dy = 2;
 const SPEED_UP = 1.0;
 const fontSize = 100;
-
-// rotation
 let angle = 0, angularVelocity = 0.005;
-
-// trail
-const trail = [];
-const TRAIL_DURATION = 2;
-const TRAIL_SAMPLE = 0.05;
+const trail = [], TRAIL_DURATION = 2, TRAIL_SAMPLE = 0.05;
 let lastTrail = 0;
-
-// glitch
 let glitchTime = 0;
 const glitchChance = 0.02, glitchDuration = 5;
 
 function formatTime(sec) {
-  const m = String(Math.floor(sec / 60)).padStart(2, '0');
-  const s = String(sec % 60).padStart(2, '0');
+  const m = String(Math.floor(sec / 60)).padStart(2,'0');
+  const s = String(sec % 60).padStart(2,'0');
   return `${m}:${s}`;
 }
 
@@ -141,66 +129,64 @@ function formatTime(sec) {
     const age = now - seg.t;
     const alpha = 1 - age / TRAIL_DURATION;
     ctx.save();
-    ctx.translate(seg.x + seg.tw / 2, seg.y + seg.th / 2);
+    ctx.translate(seg.x + seg.tw/2, seg.y + seg.th/2);
     ctx.rotate(seg.angle);
     ctx.fillStyle = `hsla(${seg.hue},100%,50%,${alpha})`;
-    ctx.fillText(seg.txt, -seg.tw / 2, -seg.th / 2);
+    ctx.fillText(seg.txt, -seg.tw/2, -seg.th/2);
     ctx.restore();
   }
 
-  // current text metrics and bbox for collision
+  // collision box
   const txt = formatTime(remaining);
+  ctx.font = `${fontSize}px Inter, sans-serif`;
   const tw = ctx.measureText(txt).width, th = fontSize;
-  const cx = x + tw / 2, cy = y + th / 2;
+  const cx = x + tw/2, cy = y + th/2;
   const cosA = Math.abs(Math.cos(angle)), sinA = Math.abs(Math.sin(angle));
-  const halfW = (tw * cosA + th * sinA) / 2;
-  const halfH = (tw * sinA + th * cosA) / 2;
+  const halfW = (tw*cosA + th*sinA)/2;
+  const halfH = (tw*sinA + th*cosA)/2;
 
-  // bounce & speed-up
-  if (cx + halfW >= W && dx > 0) { dx = -dx * SPEED_UP; angularVelocity = (Math.random()*0.04 - 0.02); }
-  if (cx - halfW <= 0 && dx < 0) { dx = -dx * SPEED_UP; angularVelocity = (Math.random()*0.04 - 0.02); }
-  if (cy + halfH >= H && dy > 0) { dy = -dy * SPEED_UP; angularVelocity = (Math.random()*0.04 - 0.02); }
-  if (cy - halfH <= 0 && dy < 0) { dy = -dy * SPEED_UP; angularVelocity = (Math.random()*0.04 - 0.02); }
-
-  x += dx; y += dy;
+  // bounce
+  if (cx+halfW>=W && dx>0) { dx=-dx*SPEED_UP; angularVelocity=(Math.random()*0.04-0.02);}  
+  if (cx-halfW<=0 && dx<0) { dx=-dx*SPEED_UP; angularVelocity=(Math.random()*0.04-0.02);}  
+  if (cy+halfH>=H && dy>0) { dy=-dy*SPEED_UP; angularVelocity=(Math.random()*0.04-0.02);}  
+  if (cy-halfH<=0 && dy<0) { dy=-dy*SPEED_UP; angularVelocity=(Math.random()*0.04-0.02);}  
+  x+=dx; y+=dy;
 
   // glitch
-  if (glitchTime > 0) glitchTime--;
-  else if (Math.random() < glitchChance) glitchTime = glitchDuration;
+  if (glitchTime>0) glitchTime--; else if (Math.random()<glitchChance) glitchTime=glitchDuration;
 
-  // draw glitch shadows with outline+shadow
-  if (glitchTime > 0) {
-    const off = (Math.random()*10)-5;
-    ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(angle);
-      ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 2;
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = '#fff';
-      ctx.strokeText(txt, -tw/2 + off, -th/2);
-      ctx.fillStyle = 'rgba(255,0,0,0.7)';
-      ctx.fillText(txt, -tw/2 + off, -th/2);
-    ctx.restore();
-  }
-
-  // main text with outline and shadow
+  // draw text
   ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
+    // gaussian blur filter
+    ctx.filter = 'blur(2px)';
+    // drop shadow parameters (remove manual blur)
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 2;
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = '#fff';
-    ctx.strokeText(txt, -tw/2, -th/2);
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 4;
+    ctx.shadowOffsetY = 4;
+    // glitch phase
+    if (glitchTime>0) {
+      const off = (Math.random()*10)-5;
+      ctx.fillStyle = 'rgba(255,0,0,0.7)';
+      ctx.fillText(txt, -tw/2+off, -th/2);
+      ctx.fillStyle = 'rgba(0,0,255,0.7)';
+      ctx.fillText(txt, -tw/2-off, -th/2);
+    }
+    // main text
     ctx.fillStyle = '#000';
     ctx.fillText(txt, -tw/2, -th/2);
+    // cursor
+    if (editing) {
+      const blink = Math.floor(now*2) % 2;
+      if (blink) {
+        ctx.fillRect(tw/2 + 5, -th/2 + 10, 5, th-20);
+      }
+    }
+    // reset filter & shadow
+    ctx.filter = 'none';
     ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
   ctx.restore();
