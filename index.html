@@ -3,17 +3,23 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Canvas Bouncing Timer</title>
+  <title>RGB Bouncing Timer</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     html, body { width:100%; height:100%; overflow:hidden; }
     canvas { display:block; background:#f0f0f0; }
     #startStop {
-      position:absolute; bottom:20px; left:50%;
+      position:absolute;
+      bottom:20px; left:50%;
       transform:translateX(-50%);
-      padding:10px 20px; font-size:1.2rem;
-      border:2px solid #333; border-radius:5%;
-      background:#f0f0f0; cursor:pointer;
+      padding:10px 20px;
+      font-size:1.2rem;
+      border:2px solid #333;
+      border-radius:5%;
+      background:#f0f0f0;
+      cursor:pointer;
+      z-index:10;
+      transition:background .2s, color .2s;
     }
     #startStop:hover { background:#333; color:#fff; }
   </style>
@@ -24,24 +30,21 @@
   <script>
     const canvas = document.getElementById('c');
     const ctx    = canvas.getContext('2d');
+    const btn    = document.getElementById('startStop');
     let W, H;
-    function resize(){
-      W = canvas.width  = innerWidth;
-      H = canvas.height = innerHeight;
-    }
-    window.addEventListener('resize', resize);
-    resize();
+    window.addEventListener('resize', () => {
+      W = canvas.width  = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    });
+    window.dispatchEvent(new Event('resize'));
 
-    // timer state
+    // countdown logic
     let duration = 0, remaining = 0, running = false, tick = null;
-    const btn = document.getElementById('startStop');
-
     btn.addEventListener('click', () => {
       if (running) {
         clearInterval(tick);
         btn.textContent = 'Start';
-      } else {
-        if (remaining <= 0) return;
+      } else if (remaining > 0) {
         tick = setInterval(() => {
           remaining--;
           if (remaining <= 0) {
@@ -54,44 +57,69 @@
       }
       running = !running;
     });
-
     canvas.addEventListener('click', () => {
       if (running) return;
       const v = parseInt(prompt('Enter countdown in seconds:'), 10);
       if (!isNaN(v) && v > 0) remaining = duration = v;
     });
 
-    // bounce state (start away from corner)
-    let x = 100, y = 100, dx = 2, dy = 2;
+    // bounce state
+    let x = 100, y = 100;
+    let dx = 2, dy = 2;
+    const SPEED_UP = 1.1;
     const fontSize = 100;
+    let color = '#333';
 
-    function format(s){
-      const m = String(Math.floor(s/60)).padStart(2,'0');
-      const sec = String(s%60).padStart(2,'0');
+    function formatTime(s) {
+      const m = String(Math.floor(s / 60)).padStart(2, '0');
+      const sec = String(s % 60).padStart(2, '0');
       return `${m}:${sec}`;
     }
 
-    function draw(){
+    function randomRGB() {
+      const r = Math.floor(Math.random() * 256);
+      const g = Math.floor(Math.random() * 256);
+      const b = Math.floor(Math.random() * 256);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function draw() {
       ctx.clearRect(0, 0, W, H);
-      const txt = format(remaining);
+      const txt = formatTime(remaining);
       ctx.font = `${fontSize}px Inter, sans-serif`;
       ctx.textBaseline = 'top';
-      ctx.fillStyle = '#333';
+
+      // measure text
       const tw = ctx.measureText(txt).width;
       const th = fontSize;
 
-      // only flip when about to go outwards
-      if (x + tw >= W && dx > 0) dx = -dx;
-      if (x <= 0     && dx < 0) dx = -dx;
-      if (y + th >= H && dy > 0) dy = -dy;
-      if (y <= 0     && dy < 0) dy = -dy;
+      // X bounce
+      if (x + tw >= W && dx > 0) {
+        dx = -dx * SPEED_UP;
+        color = randomRGB();
+      }
+      if (x <= 0 && dx < 0) {
+        dx = -dx * SPEED_UP;
+        color = randomRGB();
+      }
+      // Y bounce
+      if (y + th >= H && dy > 0) {
+        dy = -dy * SPEED_UP;
+        color = randomRGB();
+      }
+      if (y <= 0 && dy < 0) {
+        dy = -dy * SPEED_UP;
+        color = randomRGB();
+      }
 
+      // move & draw
       x += dx;
       y += dy;
+      ctx.fillStyle = color;
       ctx.fillText(txt, x, y);
     }
 
-    (function loop(){
+    (function loop() {
       draw();
       requestAnimationFrame(loop);
     })();
