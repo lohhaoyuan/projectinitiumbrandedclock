@@ -1,117 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Speeding Bouncing Timer</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{width:100%;height:100%;overflow:hidden}
-  canvas{display:block;background:#f0f0f0}
-  #startStop{
-    position:absolute;bottom:20px;left:50%;
-    transform:translateX(-50%);
-    padding:10px 20px;font-size:1.2rem;
-    border:2px solid #333;border-radius:5%;
-    background:#f0f0f0;cursor:pointer;z-index:10;
-  }
-  #startStop:hover{background:#333;color:#fff}
-</style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Canvas Bouncing Timer</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; }
+    canvas { display:block; background:#f0f0f0; }
+    #startStop {
+      position:absolute; bottom:20px; left:50%;
+      transform:translateX(-50%);
+      padding:10px 20px; font-size:1.2rem;
+      border:2px solid #333; border-radius:5%;
+      background:#f0f0f0; cursor:pointer;
+    }
+    #startStop:hover { background:#333; color:#fff; }
+  </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<button id="startStop">Start</button>
-<script>
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-const btn = document.getElementById('startStop');
-let W,H;
-window.onresize = ()=>{ W=canvas.width=innerWidth; H=canvas.height=innerHeight };
-window.onresize();
-
-let duration=0, remaining=0, running=false, tick;
-btn.onclick = ()=>{
-  if(running){
-    clearInterval(tick);
-    btn.textContent='Start';
-  } else if(remaining>0){
-    tick = setInterval(()=>{
-      remaining--;
-      if(remaining<=0){
-        clearInterval(tick);
-        running=false;
-        btn.textContent='Start';
-      }
-    },1000);
-    btn.textContent='Stop';
-  }
-  running=!running;
-};
-
-canvas.onclick = ()=>{
-  if(running) return;
-  const v = parseInt(prompt('Seconds:'),10);
-  if(!isNaN(v)&&v>0) remaining=duration=v;
-};
-
-let x=100, y=100, dx=2, dy=2;
-let fontSize=100;
-let btnColliding=false;
-const SPEED_UP = 1.1;
-
-function format(s){
-  const m=String(Math.floor(s/60)).padStart(2,'0');
-  const sec=String(s%60).padStart(2,'0');
-  return `${m}:${sec}`;
-}
-
-function rectsOverlap(r1, r2){
-  return !(r2.left   > r1.x+r1.w ||
-           r2.right  < r1.x     ||
-           r2.top    > r1.y+r1.h||
-           r2.bottom < r1.y);
-}
-
-function randomizeSize(){
-  fontSize = Math.floor(Math.random()*100)+50;
-}
-
-function draw(){
-  ctx.clearRect(0,0,W,H);
-  const txt = format(remaining);
-  ctx.font = `${fontSize}px Inter, sans-serif`;
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = '#333';
-  const tw = ctx.measureText(txt).width;
-  const th = fontSize;
-
-  // wall bounce + speed up
-  if (x+tw>=W && dx>0) dx = -dx * SPEED_UP;
-  if (x<=0 && dx<0)     dx = -dx * SPEED_UP;
-  if (y+th>=H && dy>0) dy = -dy * SPEED_UP;
-  if (y<=0 && dy<0)     dy = -dy * SPEED_UP;
-
-  // button collision + speed up
-  const br = btn.getBoundingClientRect();
-  const tr = { x, y, w:tw, h:th };
-  if (rectsOverlap(tr, br)) {
-    if (!btnColliding) {
-      dx = -dx * SPEED_UP;
-      dy = -dy * SPEED_UP;
-      randomizeSize();
-      btnColliding = true;
+  <canvas id="c"></canvas>
+  <button id="startStop">Start</button>
+  <script>
+    const canvas = document.getElementById('c');
+    const ctx    = canvas.getContext('2d');
+    let W, H;
+    function resize(){
+      W = canvas.width  = innerWidth;
+      H = canvas.height = innerHeight;
     }
-  } else btnColliding = false;
+    window.addEventListener('resize', resize);
+    resize();
 
-  x += dx;
-  y += dy;
-  ctx.fillText(txt, x, y);
-}
+    // timer state
+    let duration = 0, remaining = 0, running = false, tick = null;
+    const btn = document.getElementById('startStop');
 
-(function loop(){
-  draw();
-  requestAnimationFrame(loop);
-})();
-</script>
+    btn.addEventListener('click', () => {
+      if (running) {
+        clearInterval(tick);
+        btn.textContent = 'Start';
+      } else {
+        if (remaining <= 0) return;
+        tick = setInterval(() => {
+          remaining--;
+          if (remaining <= 0) {
+            clearInterval(tick);
+            running = false;
+            btn.textContent = 'Start';
+          }
+        }, 1000);
+        btn.textContent = 'Stop';
+      }
+      running = !running;
+    });
+
+    canvas.addEventListener('click', () => {
+      if (running) return;
+      const v = parseInt(prompt('Enter countdown in seconds:'), 10);
+      if (!isNaN(v) && v > 0) remaining = duration = v;
+    });
+
+    // bounce state (start away from corner)
+    let x = 100, y = 100, dx = 2, dy = 2;
+    const fontSize = 100;
+
+    function format(s){
+      const m = String(Math.floor(s/60)).padStart(2,'0');
+      const sec = String(s%60).padStart(2,'0');
+      return `${m}:${sec}`;
+    }
+
+    function draw(){
+      ctx.clearRect(0, 0, W, H);
+      const txt = format(remaining);
+      ctx.font = `${fontSize}px Inter, sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = '#333';
+      const tw = ctx.measureText(txt).width;
+      const th = fontSize;
+
+      // only flip when about to go outwards
+      if (x + tw >= W && dx > 0) dx = -dx;
+      if (x <= 0     && dx < 0) dx = -dx;
+      if (y + th >= H && dy > 0) dy = -dy;
+      if (y <= 0     && dy < 0) dy = -dy;
+
+      x += dx;
+      y += dy;
+      ctx.fillText(txt, x, y);
+    }
+
+    (function loop(){
+      draw();
+      requestAnimationFrame(loop);
+    })();
+  </script>
 </body>
 </html>
