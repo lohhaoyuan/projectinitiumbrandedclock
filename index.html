@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Spinning Glitch Trail Timer with Outline</title>
+<title>Spinning Glitch Trail Timer with Keyboard Input</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box }
   html, body { width:100%; height:100%; overflow:hidden }
@@ -32,29 +32,66 @@ window.addEventListener('resize', () => {
 });
 window.dispatchEvent(new Event('resize'));
 
-// countdown
-let duration = 0, remaining = 0, running = false, tick;
+// countdown state
+let duration = 0, remaining = 0;
+let running = false, tick;
+let editing = false;
+let inputBuffer = '';
+
+// start/stop helpers
+function startTimer() {
+  if (remaining <= 0) return;
+  running = true;
+  btn.textContent = 'Stop';
+  tick = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) stopTimer();
+  }, 1000);
+}
+function stopTimer() {
+  running = false;
+  clearInterval(tick);
+  btn.textContent = 'Start';
+}
+
 btn.addEventListener('click', () => {
-  if (running) { clearInterval(tick); btn.textContent = 'Start'; }
-  else if (remaining > 0) {
-    tick = setInterval(() => {
-      remaining--;
-      if (remaining <= 0) { clearInterval(tick); running = false; btn.textContent = 'Start'; }
-    }, 1000);
-    btn.textContent = 'Stop';
+  if (running) stopTimer(); else {
+    if (remaining > 0) startTimer();
   }
-  running = !running;
 });
-canvas.addEventListener('click', () => {
+
+// keyboard support
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!editing) {
+      if (running) stopTimer(); else startTimer();
+    }
+    return;
+  }
   if (running) return;
-  const input = prompt('Enter time as MMSS (e.g. 300 for 3:00):');
-  if (!input) return;
-  const v = parseInt(input.replace(/\D/g, ''), 10);
-  if (!isNaN(v)) {
-    const m = Math.floor(v / 100), s = v % 100;
-    duration = remaining = m * 60 + s;
+  if (e.key >= '0' && e.key <= '9') {
+    editing = true;
+    inputBuffer += e.key;
+    updateFromBuffer();
+  } else if (e.key === 'Backspace') {
+    editing = true;
+    inputBuffer = inputBuffer.slice(0, -1);
+    updateFromBuffer();
+  } else if (e.key === 'Enter') {
+    if (editing && remaining > 0) {
+      editing = false;
+      startTimer();
+    }
   }
 });
+
+function updateFromBuffer() {
+  const v = parseInt(inputBuffer || '0', 10);
+  const m = Math.floor(v / 100);
+  const s = v % 100;
+  duration = remaining = m * 60 + s;
+}
 
 // movement
 let x = 100, y = 100, dx = 2, dy = 2;
@@ -137,7 +174,6 @@ function formatTime(sec) {
     ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(angle);
-      // shadow
       ctx.shadowColor = 'rgba(0,0,0,0.5)';
       ctx.shadowBlur = 10;
       ctx.shadowOffsetX = 2;
@@ -154,19 +190,15 @@ function formatTime(sec) {
   ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
-    // shadow
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 2;
-    // white outline
     ctx.lineWidth = 6;
     ctx.strokeStyle = '#fff';
     ctx.strokeText(txt, -tw/2, -th/2);
-    // black fill
     ctx.fillStyle = '#000';
     ctx.fillText(txt, -tw/2, -th/2);
-    // reset shadow
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
