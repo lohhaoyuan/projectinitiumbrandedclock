@@ -160,10 +160,10 @@ function formatTime(sec) {
     ctx.translate(cx, cy);
     ctx.rotate(angle);
     // gaussian blur filter
-    ctx.filter = 'blur(2px)';
+
     // drop shadow parameters (remove manual blur)
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 0;
+    ctx.shadowBlur = 2;
     ctx.shadowOffsetX = 4;
     ctx.shadowOffsetY = 4;
     // glitch phase
