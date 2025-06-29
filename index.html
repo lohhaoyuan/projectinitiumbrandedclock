@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Spinning Glitch Trail Timer</title>
+<title>nice timer</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box }
   html, body { width:100%; height:100%; overflow:hidden }
@@ -27,7 +27,7 @@ const ctx    = canvas.getContext('2d');
 const btn    = document.getElementById('startStop');
 let W, H;
 window.addEventListener('resize', () => {
-  W = canvas.width  = window.innerWidth;
+  W = canvas.width = window.innerWidth;
   H = canvas.height = window.innerHeight;
 });
 window.dispatchEvent(new Event('resize'));
@@ -35,17 +35,11 @@ window.dispatchEvent(new Event('resize'));
 // countdown
 let duration = 0, remaining = 0, running = false, tick;
 btn.addEventListener('click', () => {
-  if (running) {
-    clearInterval(tick);
-    btn.textContent = 'Start';
-  } else if (remaining > 0) {
+  if (running) { clearInterval(tick); btn.textContent = 'Start'; }
+  else if (remaining > 0) {
     tick = setInterval(() => {
       remaining--;
-      if (remaining <= 0) {
-        clearInterval(tick);
-        running = false;
-        btn.textContent = 'Start';
-      }
+      if (remaining <= 0) { clearInterval(tick); running = false; btn.textContent = 'Start'; }
     }, 1000);
     btn.textContent = 'Stop';
   }
@@ -55,120 +49,109 @@ canvas.addEventListener('click', () => {
   if (running) return;
   const input = prompt('Enter time as MMSS (e.g. 300 for 3:00):');
   if (!input) return;
-  const v = parseInt(input.replace(/\D/g,''), 10);
+  const v = parseInt(input.replace(/\D/g, ''), 10);
   if (!isNaN(v)) {
-    const m = Math.floor(v/100), s = v%100;
-    duration = remaining = m*60 + s;
+    const m = Math.floor(v / 100), s = v % 100;
+    duration = remaining = m * 60 + s;
   }
 });
 
 // movement
-let x = 100, y = 100;
-let dx = 2, dy = 2;
+let x = 100, y = 100, dx = 2, dy = 2;
 const SPEED_UP = 1.1;
 const fontSize = 100;
 
 // rotation
-let angle = 0;
-let angularVelocity = 0.005;
+let angle = 0, angularVelocity = 0.005;
 
 // trail
 const trail = [];
 const TRAIL_DURATION = 2;
+const TRAIL_SAMPLE = 0.05;
+let lastTrail = 0;
 
 // glitch
 let glitchTime = 0;
 const glitchChance = 0.02, glitchDuration = 5;
 
 function formatTime(sec) {
-  const m = String(Math.floor(sec/60)).padStart(2,'0');
-  const s = String(sec%60).padStart(2,'0');
+  const m = String(Math.floor(sec / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
   return `${m}:${s}`;
 }
 
-;(function loop(){
-  const now = performance.now()/1000;
+(function loop() {
+  const now = performance.now() / 1000;
   angle += angularVelocity;
+
+  // sample trail at intervals
+  if (now - lastTrail > TRAIL_SAMPLE) {
+    const txt = formatTime(remaining);
+    ctx.font = `${fontSize}px Inter, sans-serif`;
+    const tw = ctx.measureText(txt).width, th = fontSize;
+    trail.push({ x, y, angle, hue: (now * 60) % 360, t: now, txt, tw, th });
+    lastTrail = now;
+  }
+  // remove old segments
+  while (trail.length && now - trail[0].t > TRAIL_DURATION) trail.shift();
 
   // clear canvas
   ctx.clearRect(0, 0, W, H);
-
-  // set font
   ctx.font = `${fontSize}px Inter, sans-serif`;
   ctx.textBaseline = 'top';
 
-  // current text & dimensions
-  const txt = formatTime(remaining);
-  const tw = ctx.measureText(txt).width;
-  const th = fontSize;
-  const hue = (now * 60) % 360;
-
-  // record for trail
-  trail.push({ x, y, hue, angle, t: now, txt, tw, th });
-  while (trail.length && now - trail[0].t > TRAIL_DURATION) {
-    trail.shift();
-  }
-
-  // draw fading rotated rainbow trail
+  // draw fading, rotated rainbow trail
   for (const seg of trail) {
     const age = now - seg.t;
-    const alpha = 1 - (age / TRAIL_DURATION);
+    const alpha = 1 - age / TRAIL_DURATION;
     ctx.save();
-    ctx.translate(seg.x + seg.tw/2, seg.y + seg.th/2);
+    ctx.translate(seg.x + seg.tw / 2, seg.y + seg.th / 2);
     ctx.rotate(seg.angle);
     ctx.fillStyle = `hsla(${seg.hue},100%,50%,${alpha})`;
-    ctx.fillText(seg.txt, -seg.tw/2, -seg.th/2);
+    ctx.fillText(seg.txt, -seg.tw / 2, -seg.th / 2);
     ctx.restore();
   }
 
-  // bounce and speed-up, randomize spin on bounce
-  if (x + tw >= W && dx > 0) {
-    dx = -dx * SPEED_UP;
-    angularVelocity = (Math.random()*0.04 - 0.02);
-  }
-  if (x <= 0 && dx < 0) {
-    dx = -dx * SPEED_UP;
-    angularVelocity = (Math.random()*0.04 - 0.02);
-  }
-  if (y + th >= H && dy > 0) {
-    dy = -dy * SPEED_UP;
-    angularVelocity = (Math.random()*0.04 - 0.02);
-  }
-  if (y <= 0 && dy < 0) {
-    dy = -dy * SPEED_UP;
-    angularVelocity = (Math.random()*0.04 - 0.02);
-  }
+  // current text dimensions and rotated bounding box
+  const txt = formatTime(remaining);
+  const tw = ctx.measureText(txt).width, th = fontSize;
+  const cx = x + tw / 2, cy = y + th / 2;
+  const cosA = Math.abs(Math.cos(angle)), sinA = Math.abs(Math.sin(angle));
+  const halfW = (tw * cosA + th * sinA) / 2;
+  const halfH = (tw * sinA + th * cosA) / 2;
+
+  // bounce detection and speed-up
+  if (cx + halfW >= W && dx > 0) { dx = -dx * SPEED_UP; angularVelocity = (Math.random() * 0.04 - 0.02); }
+  if (cx - halfW <= 0 && dx < 0) { dx = -dx * SPEED_UP; angularVelocity = (Math.random() * 0.04 - 0.02); }
+  if (cy + halfH >= H && dy > 0) { dy = -dy * SPEED_UP; angularVelocity = (Math.random() * 0.04 - 0.02); }
+  if (cy - halfH <= 0 && dy < 0) { dy = -dy * SPEED_UP; angularVelocity = (Math.random() * 0.04 - 0.02); }
 
   // update position
-  x += dx;
-  y += dy;
+  x += dx; y += dy;
 
-  // glitch logic
-  if (glitchTime > 0) {
-    glitchTime--;
-  } else if (Math.random() < glitchChance) {
-    glitchTime = glitchDuration;
-  }
+  // glitch effect
+  if (glitchTime > 0) glitchTime--;
+  else if (Math.random() < glitchChance) glitchTime = glitchDuration;
 
-  // draw glitch shadows (rotated)
+  // draw glitch shadows rotated
   if (glitchTime > 0) {
-    const off = (Math.random()*10)-5;
+    const off = (Math.random() * 10) - 5;
     ctx.save();
-    ctx.translate(x + tw/2, y + th/2);
+    ctx.translate(cx, cy);
     ctx.rotate(angle);
     ctx.fillStyle = 'rgba(255,0,0,0.7)';
-    ctx.fillText(txt, -tw/2 + off, -th/2);
+    ctx.fillText(txt, -tw / 2 + off, -th / 2);
     ctx.fillStyle = 'rgba(0,0,255,0.7)';
-    ctx.fillText(txt, -tw/2 - off, -th/2);
+    ctx.fillText(txt, -tw / 2 - off, -th / 2);
     ctx.restore();
   }
 
   // draw main text rotated
   ctx.save();
-  ctx.translate(x + tw/2, y + th/2);
+  ctx.translate(cx, cy);
   ctx.rotate(angle);
   ctx.fillStyle = '#000';
-  ctx.fillText(txt, -tw/2, -th/2);
+  ctx.fillText(txt, -tw / 2, -th / 2);
   ctx.restore();
 
   requestAnimationFrame(loop);
