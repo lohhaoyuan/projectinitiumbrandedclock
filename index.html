@@ -1,28 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Linear Bouncing RGB Glitch Timer</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box }
-  html, body { width:100%; height:100%; overflow:hidden }
-  canvas { display:block; background:#f0f0f0 }
-  #startStop {
-    position:absolute; bottom:20px; left:50%;
-    transform:translateX(-50%);
-    padding:10px 20px; font-size:1.2rem;
-    border:2px solid #333; border-radius:5%;
-    background:#f0f0f0; cursor:pointer; z-index:10;
-    transition:background .2s, color .2s;
-  }
-  #startStop:hover { background:#333; color:#fff }
-</style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Glitchy Rainbow Trail Timer</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box }
+    html, body { width:100%; height:100%; overflow:hidden }
+    canvas { display:block; background:#f0f0f0 }
+    #startStop {
+      position:absolute; bottom:20px; left:50%;
+      transform:translateX(-50%);
+      padding:10px 20px; font-size:1.2rem;
+      border:2px solid #333; border-radius:5%;
+      background:#f0f0f0; cursor:pointer; z-index:10;
+      transition:background .2s, color .2s;
+    }
+    #startStop:hover { background:#333; color:#fff }
+  </style>
 </head>
 <body>
   <canvas id="c"></canvas>
   <button id="startStop">Start</button>
-
   <script>
     const canvas = document.getElementById('c');
     const ctx    = canvas.getContext('2d');
@@ -34,8 +33,12 @@
     });
     window.dispatchEvent(new Event('resize'));
 
-    // countdown logic
-    let duration = 0, remaining = 0, running = false, tick;
+    // countdown
+    let duration = 0,
+        remaining = 0,
+        running = false,
+        tick;
+
     btn.addEventListener('click', () => {
       if (running) {
         clearInterval(tick);
@@ -53,61 +56,91 @@
       }
       running = !running;
     });
+
+    // MMSS-style input: e.g. "300" → 3:00
     canvas.addEventListener('click', () => {
       if (running) return;
-      const v = parseInt(prompt('Enter countdown in seconds:'), 10);
-      if (!isNaN(v) && v > 0) remaining = duration = v;
+      const input = prompt('Enter time as MMSS (e.g. 300 for 3:00):');
+      if (!input) return;
+      const digits = input.replace(/\D/g, '');
+      const v = parseInt(digits, 10);
+      if (!isNaN(v)) {
+        const m = Math.floor(v / 100);
+        const s = v % 100;
+        duration = remaining = m * 60 + s;
+      }
     });
 
-    // movement state
+    // movement
     let x = 100, y = 100;
     let dx = 2, dy = 2;
-    const SPEED_UP = 1.00001;
+    const SPEED_UP = 1.1;
     const fontSize = 100;
 
-    // glitch state
-    let glitchTime = 0;
-    const glitchChance = 0.02, glitchDuration = 5;
+    // rainbow trail
+    const trail = [];
+    const TRAIL_DURATION = 2; // seconds
 
-    function formatTime(s) {
-      const m = String(Math.floor(s / 60)).padStart(2, '0');
-      const sec = String(s % 60).padStart(2, '0');
-      return `${m}:${sec}`;
+    // glitch
+    let glitchTime = 0;
+    const glitchChance = 0.02,
+          glitchDuration = 5;
+
+    function formatTime(sec) {
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      return `${m}:${s}`;
     }
 
     ;(function loop(){
-      // draw translucent overlay for rainbow trail
-      ctx.fillStyle = 'rgba(240,240,240,0.1)';
-      ctx.fillRect(0, 0, W, H);
+      const now = performance.now() / 1000;
 
+      // record current for trail
       const txt = formatTime(remaining);
+      const hue = (now * 60) % 360;
+      trail.push({ x, y, hue, t: now, txt });
+
+      // prune old trail
+      while (trail.length && now - trail[0].t > TRAIL_DURATION) {
+        trail.shift();
+      }
+
+      // clear
+      ctx.clearRect(0, 0, W, H);
+
       ctx.font = `${fontSize}px Inter, sans-serif`;
       ctx.textBaseline = 'top';
+
+      // draw trail
+      for (const seg of trail) {
+        const age = now - seg.t;
+        const alpha = 1 - (age / TRAIL_DURATION);
+        ctx.fillStyle = `hsla(${seg.hue},100%,50%,${alpha})`;
+        ctx.fillText(seg.txt, seg.x, seg.y);
+      }
+
+      // measure for bounce
       const tw = ctx.measureText(txt).width;
       const th = fontSize;
 
-      // bounce off walls, speed up & change nothing but velocity
+      // bounce & speed up
       if (x + tw >= W && dx > 0) dx = -dx * SPEED_UP;
       if (x <= 0     && dx < 0) dx = -dx * SPEED_UP;
       if (y + th >= H && dy > 0) dy = -dy * SPEED_UP;
       if (y <= 0     && dy < 0) dy = -dy * SPEED_UP;
 
-      // update position
+      // update pos
       x += dx;
       y += dy;
 
-      // pick a continuously cycling hue
-      const now = performance.now() / 1000;
-      const hue = (now * 60) % 360;
-
-      // glitch trigger
+      // glitch logic
       if (glitchTime > 0) {
         glitchTime--;
       } else if (Math.random() < glitchChance) {
         glitchTime = glitchDuration;
       }
 
-      // draw glitch layers
+      // glitch shadows
       if (glitchTime > 0) {
         const off = (Math.random() * 10) - 5;
         ctx.fillStyle = 'rgba(255,0,0,0.7)';
@@ -116,8 +149,8 @@
         ctx.fillText(txt, x - off, y);
       }
 
-      // draw main RGB‐cycling text
-      ctx.fillStyle = `hsl(${hue},100%,50%)`;
+      // main text in black
+      ctx.fillStyle = '#000';
       ctx.fillText(txt, x, y);
 
       requestAnimationFrame(loop);
