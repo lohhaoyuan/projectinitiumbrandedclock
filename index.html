@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Editable Spinning Timer with Blurred Shadow</title>
+<title>Swipe Editable Spinning Timer</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box }
-  html, body { width:100%; height:100%; overflow:hidden }
-  canvas { display:block; background:#f0f0f0 }
+  html, body { width:100%; height:100%; overflow:hidden; touch-action: none; }
+  canvas { display:block; background:#f0f0f0; }
   #startStop {
     position:absolute; bottom:20px; left:50%;
     transform:translateX(-50%);
@@ -22,175 +22,93 @@
 <canvas id="c"></canvas>
 <button id="startStop">Start</button>
 <script>
-const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
-const btn    = document.getElementById('startStop');
+const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+const btn = document.getElementById('startStop');
 let W, H;
-window.addEventListener('resize', () => {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-});
+window.addEventListener('resize', ()=>{ W=canvas.width=innerWidth; H=canvas.height=innerHeight; });
 window.dispatchEvent(new Event('resize'));
 
-// state
-let duration = 0, remaining = 0;
-let running = false, tick;
-let editing = false;
-let inputBuffer = '';
+// Timer state
+let duration=0, remaining=0; let running=false, tick;
+let editing=false, inputBuffer='';
+// Swipe state
+let touchStartX=null, initialRemaining=0;
 
-// controls
-function startTimer() {
-  if (remaining <= 0) return;
-  running = true;
-  btn.textContent = 'Stop';
-  tick = setInterval(() => {
-    remaining--;
-    if (remaining <= 0) stopTimer();
-  }, 1000);
-}
-function stopTimer() {
-  running = false;
-  clearInterval(tick);
-  btn.textContent = 'Start';
-}
-btn.addEventListener('click', () => {
-  if (running) stopTimer(); else if (remaining > 0) startTimer();
+// Controls
+function startTimer(){ if(remaining<=0)return; running=true; btn.textContent='Stop'; tick=setInterval(()=>{remaining--; if(remaining<=0)stopTimer();},1000);} 
+function stopTimer(){ running=false; clearInterval(tick); btn.textContent='Start'; }
+btn.addEventListener('click', ()=>{ if(running) stopTimer(); else if(remaining>0) startTimer(); });
+
+// Keyboard input
+window.addEventListener('keydown', e=>{
+  if(e.code==='Space'){ e.preventDefault(); if(!editing){ if(running)stopTimer(); else startTimer(); } return; }
+  if(running) return;
+  if(e.key>='0'&&e.key<='9'){ editing=true; inputBuffer+=e.key; updateFromBuffer(); }
+  else if(e.key==='Backspace'){ editing=true; inputBuffer=inputBuffer.slice(0,-1); updateFromBuffer(); }
+  else if(e.key==='Enter'){ if(editing&&remaining>0){ editing=false; startTimer(); } }
 });
+function updateFromBuffer(){ const v=parseInt(inputBuffer||'0'), m=Math.floor(v/100), s=v%100; duration=remaining=m*60+s; }
 
-// keyboard input
-window.addEventListener('keydown', e => {
-  if (e.code === 'Space') {
-    e.preventDefault();
-    if (!editing) {
-      if (running) stopTimer(); else startTimer();
-    }
-    return;
-  }
-  if (running) return;
-  if (e.key >= '0' && e.key <= '9') {
-    editing = true;
-    inputBuffer += e.key;
-    updateFromBuffer();
-  } else if (e.key === 'Backspace') {
-    editing = true;
-    inputBuffer = inputBuffer.slice(0, -1);
-    updateFromBuffer();
-  } else if (e.key === 'Enter') {
-    if (editing && remaining > 0) {
-      editing = false;
-      startTimer();
-    }
+// Swipe handlers
+canvas.addEventListener('touchstart', e=>{
+  if(running) return;
+  const touch=e.touches[0];
+  // detect within timer bbox
+  const txt=formatTime(remaining), fs=fontSize;
+  ctx.font=`${fs}px Inter`; const tw=ctx.measureText(txt).width, th=fs;
+  const cx=x+tw/2, cy=y+th/2;
+  const cosA=Math.abs(Math.cos(angle)), sinA=Math.abs(Math.sin(angle));
+  const halfW=(tw*cosA+th*sinA)/2, halfH=(tw*sinA+th*cosA)/2;
+  const tx=touch.clientX, ty=touch.clientY;
+  if(tx>=cx-halfW && tx<=cx+halfW && ty>=cy-halfH && ty<=cy+halfH){
+    touchStartX=tx; initialRemaining=remaining;
   }
 });
-function updateFromBuffer() {
-  const v = parseInt(inputBuffer || '0', 10);
-  const m = Math.floor(v / 100);
-  const s = v % 100;
-  duration = remaining = m * 60 + s;
-}
+canvas.addEventListener('touchmove', e=>{
+  if(touchStartX===null) return;
+  e.preventDefault();
+  const tx=e.touches[0].clientX;
+  const delta=Math.floor((tx-touchStartX)/20); // 20px per sec
+  remaining=Math.max(0, initialRemaining+delta);
+});
+canvas.addEventListener('touchend', e=>{ touchStartX=null; });
 
-// movement & visuals
-let x = 100, y = 100, dx = 2, dy = 2;
-const SPEED_UP = 1.0;
-const fontSize = 100;
-let angle = 0, angularVelocity = 0.005;
-const trail = [], TRAIL_DURATION = 2, TRAIL_SAMPLE = 0.05;
-let lastTrail = 0;
-let glitchTime = 0;
-const glitchChance = 0.02, glitchDuration = 5;
+// Movement & visuals
+let x=100,y=100,dx=2,dy=2; const SPEED_UP=1;
+const fontSize=100; let angle=0, angularVelocity=0.005;
+const trail=[], TRAIL_DURATION=2, TRAIL_SAMPLE=0.05; let lastTrail=0;
+let glitchTime=0, glitchChance=0.02, glitchDuration=5;
+// Second text
+const text2='project initium 2.0'; let x2=200,y2=200,dx2=3,dy2=2.5; const fontSize2=40;
 
-function formatTime(sec) {
-  const m = String(Math.floor(sec / 60)).padStart(2,'0');
-  const s = String(sec % 60).padStart(2,'0');
-  return `${m}:${s}`;
-}
+function formatTime(sec){ const m=String(Math.floor(sec/60)).padStart(2,'0'); const s=String(sec%60).padStart(2,'0'); return`${m}:${s}`; }
 
-(function loop() {
-  const now = performance.now() / 1000;
-  angle += angularVelocity;
-
-  // sample trail
-  if (now - lastTrail > TRAIL_SAMPLE) {
-    const txt = formatTime(remaining);
-    ctx.font = `${fontSize}px Inter, sans-serif`;
-    const tw = ctx.measureText(txt).width, th = fontSize;
-    trail.push({ x, y, angle, hue: (now * 60) % 360, t: now, txt, tw, th });
-    lastTrail = now;
-  }
-  while (trail.length && now - trail[0].t > TRAIL_DURATION) trail.shift();
-
+(function loop(){ const now=performance.now()/1000; angle+=angularVelocity;
+  // trail sample
+  if(now-lastTrail>TRAIL_SAMPLE){ const txt=formatTime(remaining); ctx.font=`${fontSize}px Inter`; const tw=ctx.measureText(txt).width, th=fontSize; trail.push({x,y,angle,hue:(now*60)%360,t:now,txt,tw,th}); lastTrail=now; }
+  while(trail.length&&now-trail[0].t>TRAIL_DURATION)trail.shift();
   // clear
-  ctx.clearRect(0, 0, W, H);
-  ctx.font = `${fontSize}px Inter, sans-serif`;
-  ctx.textBaseline = 'top';
-
-  // draw trail
-  for (const seg of trail) {
-    const age = now - seg.t;
-    const alpha = 1 - age / TRAIL_DURATION;
-    ctx.save();
-    ctx.translate(seg.x + seg.tw/2, seg.y + seg.th/2);
-    ctx.rotate(seg.angle);
-    ctx.fillStyle = `hsla(${seg.hue},100%,50%,${alpha})`;
-    ctx.fillText(seg.txt, -seg.tw/2, -seg.th/2);
-    ctx.restore();
-  }
-
-  // collision box
-  const txt = formatTime(remaining);
-  ctx.font = `${fontSize}px Inter, sans-serif`;
-  const tw = ctx.measureText(txt).width, th = fontSize;
-  const cx = x + tw/2, cy = y + th/2;
-  const cosA = Math.abs(Math.cos(angle)), sinA = Math.abs(Math.sin(angle));
-  const halfW = (tw*cosA + th*sinA)/2;
-  const halfH = (tw*sinA + th*cosA)/2;
-
+  ctx.clearRect(0,0,W,H);
+  ctx.textBaseline='top';
+  // draw blurred trail
+  ctx.filter='blur(2px)';
+  for(const seg of trail){ const age=now-seg.t,alpha=1-age/TRAIL_DURATION; ctx.save(); ctx.translate(seg.x+seg.tw/2,seg.y+seg.th/2); ctx.rotate(seg.angle); ctx.font=`${fontSize}px Inter`; ctx.fillStyle=`hsla(${seg.hue},100%,50%,${alpha})`; ctx.fillText(seg.txt,-seg.tw/2,-seg.th/2); ctx.restore(); }
+  ctx.filter='none';
+  // main timer
+  const txt=formatTime(remaining); ctx.font=`${fontSize}px Inter`; const tw=ctx.measureText(txt).width, th=fontSize;
+  const cx=x+tw/2, cy=y+th/2; const cosA=Math.abs(Math.cos(angle)),sinA=Math.abs(Math.sin(angle));
+  const halfW=(tw*cosA+th*sinA)/2,halfH=(tw*sinA+th*cosA)/2;
   // bounce
-  if (cx+halfW>=W && dx>0) { dx=-dx*SPEED_UP; angularVelocity=(Math.random()*0.04-0.02);}  
-  if (cx-halfW<=0 && dx<0) { dx=-dx*SPEED_UP; angularVelocity=(Math.random()*0.04-0.02);}  
-  if (cy+halfH>=H && dy>0) { dy=-dy*SPEED_UP; angularVelocity=(Math.random()*0.04-0.02);}  
-  if (cy-halfH<=0 && dy<0) { dy=-dy*SPEED_UP; angularVelocity=(Math.random()*0.04-0.02);}  
-  x+=dx; y+=dy;
-
+  if(cx+halfW>=W&&dx>0){dx=-dx*SPEED_UP;angularVelocity=(Math.random()*0.04-0.02);} if(cx-halfW<=0&&dx<0){dx=-dx*SPEED_UP;angularVelocity=(Math.random()*0.04-0.02);} if(cy+halfH>=H&&dy>0){dy=-dy*SPEED_UP;angularVelocity=(Math.random()*0.04-0.02);} if(cy-halfH<=0&&dy<0){dy=-dy*SPEED_UP;angularVelocity=(Math.random()*0.04-0.02);} x+=dx; y+=dy;
   // glitch
-  if (glitchTime>0) glitchTime--; else if (Math.random()<glitchChance) glitchTime=glitchDuration;
-
-  // draw text
-  ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle);
-    // gaussian blur filter
-
-    // drop shadow parameters (remove manual blur)
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 2;
-    ctx.shadowOffsetX = 4;
-    ctx.shadowOffsetY = 4;
-    // glitch phase
-    if (glitchTime>0) {
-      const off = (Math.random()*10)-5;
-      ctx.fillStyle = 'rgba(255,0,0,0.7)';
-      ctx.fillText(txt, -tw/2+off, -th/2);
-      ctx.fillStyle = 'rgba(0,0,255,0.7)';
-      ctx.fillText(txt, -tw/2-off, -th/2);
-    }
-    // main text
-    ctx.fillStyle = '#000';
-    ctx.fillText(txt, -tw/2, -th/2);
-    // cursor
-    if (editing) {
-      const blink = Math.floor(now*2) % 2;
-      if (blink) {
-        ctx.fillRect(tw/2 + 5, -th/2 + 10, 5, th-20);
-      }
-    }
-    // reset filter & shadow
-    ctx.filter = 'none';
-    ctx.shadowColor = 'transparent';
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-  ctx.restore();
-
+  if(glitchTime>0)glitchTime--;else if(Math.random()<glitchChance)glitchTime=glitchDuration;
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);
+    ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowOffsetX=4;ctx.shadowOffsetY=4;
+    if(glitchTime>0){const off=(Math.random()*10)-5;ctx.fillStyle='rgba(255,0,0,0.7)';ctx.fillText(txt,-tw/2+off,-th/2);ctx.fillStyle='rgba(0,0,255,0.7)';ctx.fillText(txt,-tw/2-off,-th/2);} ctx.fillStyle='#000';ctx.fillText(txt,-tw/2,-th/2);
+    if(editing){const blink=Math.floor(now*2)%2; if(blink)ctx.fillRect(tw/2+5,-th/2+10,5,th-20);} ctx.shadowColor='transparent';ctx.restore();
+  // second text
+  ctx.save();ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowOffsetX=4;ctx.shadowOffsetY=4;ctx.font=`${fontSize2}px Inter`;ctx.fillStyle='#000'; const tw2=ctx.measureText(text2).width,th2=fontSize2;
+  if(x2+tw2>=W&&dx2>0)dx2=-dx2; if(x2<=0&&dx2<0)dx2=-dx2; if(y2+th2>=H&&dy2>0)dy2=-dy2; if(y2<=0&&dy2<0)dy2=-dy2; x2+=dx2; y2+=dy2;ctx.fillText(text2,x2,y2);ctx.shadowColor='transparent';ctx.restore();
   requestAnimationFrame(loop);
 })();
 </script>
