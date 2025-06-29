@@ -2,35 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Countdown Timer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500&display=swap" rel="stylesheet">
   <style>
-    
-    * {
-        font-family: 'Inter', sans-serif;
-    }
+    * { margin:0; padding:0; box-sizing:border-box; }
     body {
-      margin: 0;
-      padding: 0;
+      position: relative;
+      overflow: hidden;
+      width: 100vw;
       height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background-color: #f0f0f0;
-      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      font-family: 'Inter', sans-serif;
     }
     #timer {
+      position: absolute;
+      top: 0;
+      left: 0;
       font-size: 20rem;
-      font-weight:500;
+      font-weight: 500;
       cursor: pointer;
       user-select: none;
+      color: #333;
     }
     #controls {
-      margin-top: 20px;
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
     }
     button {
       padding: 10px 20px;
@@ -38,15 +39,13 @@
       margin: 0 10px;
       cursor: pointer;
       background-color: #f0f0f0;
-        border: 2px solid #333;
-        border-radius: 5%;
-
+      border: 2px solid #333;
+      border-radius: 5%;
+      transition: background .3s, color .3s;
     }
-    button:hover{
-        background-color: #333;
-        color: #fff;
-        animation-timing-function: ease-in-out;
-        animation-duration: 0.5s;
+    button:hover {
+      background-color: #333;
+      color: #fff;
     }
   </style>
 </head>
@@ -55,60 +54,72 @@
   <div id="controls">
     <button id="startStop">Start</button>
   </div>
-
   <script>
-    let duration = 0;
-    let remaining = 0;
-    let interval = null;
-    let running = false;
-
+    // countdown logic
+    let duration = 0, remaining = 0, interval = null, running = false;
     const timerDisplay = document.getElementById('timer');
-    const startStopBtn = document.getElementById('startStop');
-
-    function formatTime(seconds) {
-      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const s = String(seconds % 60).padStart(2, '0');
-      return `${m}:${s}`;
+    const startStopBtn  = document.getElementById('startStop');
+    function formatTime(s){
+      const m = String(Math.floor(s/60)).padStart(2,'0');
+      const sec = String(s%60).padStart(2,'0');
+      return `${m}:${sec}`;
     }
-
-    function updateDisplay() {
+    function updateDisplay(){
       timerDisplay.textContent = formatTime(remaining);
     }
-
-    function startTimer() {
-      if (remaining <= 0) return;
-      interval = setInterval(() => {
+    function startTimer(){
+      if (remaining<=0) return;
+      interval = setInterval(()=>{
         remaining--;
         updateDisplay();
-        if (remaining <= 0) {
+        if (remaining<=0){
           clearInterval(interval);
-          running = false;
-          startStopBtn.textContent = 'Start';
+          running=false;
+          startStopBtn.textContent='Start';
         }
-      }, 1000);
+      },1000);
     }
-
-    timerDisplay.addEventListener('click', () => {
+    timerDisplay.addEventListener('click',()=>{
       if (running) return;
       const input = prompt('Enter countdown time in seconds:');
-      const value = parseInt(input);
-      if (!isNaN(value) && value > 0) {
-        duration = value;
-        remaining = duration;
+      const v = parseInt(input);
+      if (!isNaN(v) && v>0){
+        duration=v;
+        remaining=v;
         updateDisplay();
       }
     });
-
-    startStopBtn.addEventListener('click', () => {
-      if (running) {
+    startStopBtn.addEventListener('click',()=>{
+      if (running){
         clearInterval(interval);
-        startStopBtn.textContent = 'Start';
+        startStopBtn.textContent='Start';
       } else {
         startTimer();
-        startStopBtn.textContent = 'Stop';
+        startStopBtn.textContent='Stop';
       }
       running = !running;
     });
+
+    // DVD‐bounce logic
+    let x=0, y=0, dirX=1, dirY=1, speed=2;
+    function animate(){
+      const cw = timerDisplay.clientWidth, ch = timerDisplay.clientHeight;
+      const ww = window.innerWidth, wh = window.innerHeight;
+      // bounce X
+      if (x + cw >= ww || x <= 0) dirX *= -1;
+      // bounce Y
+      if (y + ch >= wh || y <= 0) dirY *= -1;
+      // move
+      x += dirX * speed;
+      y += dirY * speed;
+      timerDisplay.style.left = x + 'px';
+      timerDisplay.style.top  = y + 'px';
+      requestAnimationFrame(animate);
+    }
+
+    // kick everything off
+    updateDisplay();
+    animate();
   </script>
 </body>
 </html>
