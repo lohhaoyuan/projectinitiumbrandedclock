@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>nice timer</title>
+<title>Spinning Glitch Trail Timer with Outline</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box }
   html, body { width:100%; height:100%; overflow:hidden }
@@ -58,7 +58,7 @@ canvas.addEventListener('click', () => {
 
 // movement
 let x = 100, y = 100, dx = 2, dy = 2;
-const SPEED_UP = 1.1;
+const SPEED_UP = 1.0;
 const fontSize = 100;
 
 // rotation
@@ -84,7 +84,7 @@ function formatTime(sec) {
   const now = performance.now() / 1000;
   angle += angularVelocity;
 
-  // sample trail at intervals
+  // sample trail
   if (now - lastTrail > TRAIL_SAMPLE) {
     const txt = formatTime(remaining);
     ctx.font = `${fontSize}px Inter, sans-serif`;
@@ -92,15 +92,14 @@ function formatTime(sec) {
     trail.push({ x, y, angle, hue: (now * 60) % 360, t: now, txt, tw, th });
     lastTrail = now;
   }
-  // remove old segments
   while (trail.length && now - trail[0].t > TRAIL_DURATION) trail.shift();
 
-  // clear canvas
+  // clear
   ctx.clearRect(0, 0, W, H);
   ctx.font = `${fontSize}px Inter, sans-serif`;
   ctx.textBaseline = 'top';
 
-  // draw fading, rotated rainbow trail
+  // draw trail
   for (const seg of trail) {
     const age = now - seg.t;
     const alpha = 1 - age / TRAIL_DURATION;
@@ -112,7 +111,7 @@ function formatTime(sec) {
     ctx.restore();
   }
 
-  // current text dimensions and rotated bounding box
+  // current text metrics and bbox for collision
   const txt = formatTime(remaining);
   const tw = ctx.measureText(txt).width, th = fontSize;
   const cx = x + tw / 2, cy = y + th / 2;
@@ -120,38 +119,58 @@ function formatTime(sec) {
   const halfW = (tw * cosA + th * sinA) / 2;
   const halfH = (tw * sinA + th * cosA) / 2;
 
-  // bounce detection and speed-up
-  if (cx + halfW >= W && dx > 0) { dx = -dx * SPEED_UP; angularVelocity = (Math.random() * 0.04 - 0.02); }
-  if (cx - halfW <= 0 && dx < 0) { dx = -dx * SPEED_UP; angularVelocity = (Math.random() * 0.04 - 0.02); }
-  if (cy + halfH >= H && dy > 0) { dy = -dy * SPEED_UP; angularVelocity = (Math.random() * 0.04 - 0.02); }
-  if (cy - halfH <= 0 && dy < 0) { dy = -dy * SPEED_UP; angularVelocity = (Math.random() * 0.04 - 0.02); }
+  // bounce & speed-up
+  if (cx + halfW >= W && dx > 0) { dx = -dx * SPEED_UP; angularVelocity = (Math.random()*0.04 - 0.02); }
+  if (cx - halfW <= 0 && dx < 0) { dx = -dx * SPEED_UP; angularVelocity = (Math.random()*0.04 - 0.02); }
+  if (cy + halfH >= H && dy > 0) { dy = -dy * SPEED_UP; angularVelocity = (Math.random()*0.04 - 0.02); }
+  if (cy - halfH <= 0 && dy < 0) { dy = -dy * SPEED_UP; angularVelocity = (Math.random()*0.04 - 0.02); }
 
-  // update position
   x += dx; y += dy;
 
-  // glitch effect
+  // glitch
   if (glitchTime > 0) glitchTime--;
   else if (Math.random() < glitchChance) glitchTime = glitchDuration;
 
-  // draw glitch shadows rotated
+  // draw glitch shadows with outline+shadow
   if (glitchTime > 0) {
-    const off = (Math.random() * 10) - 5;
+    const off = (Math.random()*10)-5;
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle);
-    ctx.fillStyle = 'rgba(255,0,0,0.7)';
-    ctx.fillText(txt, -tw / 2 + off, -th / 2);
-    ctx.fillStyle = 'rgba(0,0,255,0.7)';
-    ctx.fillText(txt, -tw / 2 - off, -th / 2);
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      // shadow
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#fff';
+      ctx.strokeText(txt, -tw/2 + off, -th/2);
+      ctx.fillStyle = 'rgba(255,0,0,0.7)';
+      ctx.fillText(txt, -tw/2 + off, -th/2);
     ctx.restore();
   }
 
-  // draw main text rotated
+  // main text with outline and shadow
   ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#000';
-  ctx.fillText(txt, -tw / 2, -th / 2);
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    // shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    // white outline
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#fff';
+    ctx.strokeText(txt, -tw/2, -th/2);
+    // black fill
+    ctx.fillStyle = '#000';
+    ctx.fillText(txt, -tw/2, -th/2);
+    // reset shadow
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
   ctx.restore();
 
   requestAnimationFrame(loop);
