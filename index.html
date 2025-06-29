@@ -3,114 +3,101 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Swipe Editable Spinning Timer</title>
+<title>Optimized Swipe Spinning Timer - Aligned Trail</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box }
-  html, body { width:100%; height:100%; overflow:hidden; touch-action: none; }
-  canvas { display:block; background:#f0f0f0; }
-  #startStop {
-    position:absolute; bottom:20px; left:50%;
-    transform:translateX(-50%);
-    padding:10px 20px; font-size:1.2rem;
-    border:2px solid #333; border-radius:5%;
-    background:#f0f0f0; cursor:pointer; z-index:10;
-  }
-  #startStop:hover { background:#333; color:#fff }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;touch-action:none}
+  canvas{display:block;background:#f0f0f0}
+  #startStop{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 20px;font-size:1.2rem;border:2px solid #333;border-radius:5%;background:#f0f0f0;cursor:pointer;z-index:10}
+  #startStop:hover{background:#333;color:#fff}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <button id="startStop">Start</button>
 <script>
-const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
-const btn = document.getElementById('startStop');
-let W, H;
-window.addEventListener('resize', ()=>{ W=canvas.width=innerWidth; H=canvas.height=innerHeight; });
-window.dispatchEvent(new Event('resize'));
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+let W,H;function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;}window.addEventListener('resize',resize);resize();
 
-// Timer state
-let duration=0, remaining=0; let running=false, tick;
-let editing=false, inputBuffer='';
-// Swipe state
-let touchStartX=null, initialRemaining=0;
+// state
+let duration=0,remaining=0,running=false,tick,editing=false,inputBuf='';
+let touchStartX=null,initRemaining=0;
 
-// Controls
-function startTimer(){ if(remaining<=0)return; running=true; btn.textContent='Stop'; tick=setInterval(()=>{remaining--; if(remaining<=0)stopTimer();},1000);} 
-function stopTimer(){ running=false; clearInterval(tick); btn.textContent='Start'; }
-btn.addEventListener('click', ()=>{ if(running) stopTimer(); else if(remaining>0) startTimer(); });
+// metrics cache
+let txt='00:00',tw=0,th=0;
+const fontSize=100;
+function updateTxt(){txt=formatTime(remaining);ctx.font=`${fontSize}px Inter`;tw=ctx.measureText(txt).width;th=fontSize;}
+function formatTime(s){const m=String(Math.floor(s/60)).padStart(2,'0'),sec=String(s%60).padStart(2,'0');return`${m}:${sec}`;}
+updateTxt();
 
-// Keyboard input
-window.addEventListener('keydown', e=>{
-  if(e.code==='Space'){ e.preventDefault(); if(!editing){ if(running)stopTimer(); else startTimer(); } return; }
-  if(running) return;
-  if(e.key>='0'&&e.key<='9'){ editing=true; inputBuffer+=e.key; updateFromBuffer(); }
-  else if(e.key==='Backspace'){ editing=true; inputBuffer=inputBuffer.slice(0,-1); updateFromBuffer(); }
-  else if(e.key==='Enter'){ if(editing&&remaining>0){ editing=false; startTimer(); } }
+// controls
+const btn=document.getElementById('startStop');
+function startTimer(){if(remaining<=0)return;running=true;btn.textContent='Stop';tick=setInterval(()=>{remaining--;updateTxt();if(remaining<=0)stopTimer();},1000);} 
+function stopTimer(){running=false;clearInterval(tick);btn.textContent='Start';}
+btn.addEventListener('click',()=>{running?stopTimer():remaining>0&&startTimer();});
+
+// keyboard
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();if(!editing)running?stopTimer():startTimer();return;}
+  if(running)return;
+  if(e.key>='0'&&e.key<='9'){editing=true;inputBuf+=e.key;applyBuf();}
+  else if(e.key==='Backspace'){editing=true;inputBuf=inputBuf.slice(0,-1);applyBuf();}
+  else if(e.key==='Enter'){if(editing&&remaining>0){editing=false;startTimer();}}
 });
-function updateFromBuffer(){ const v=parseInt(inputBuffer||'0'), m=Math.floor(v/100), s=v%100; duration=remaining=m*60+s; }
+function applyBuf(){const v=parseInt(inputBuf||'0',10),m=Math.floor(v/100),s=v%100;duration=remaining=m*60+s;updateTxt();}
 
-// Swipe handlers
-canvas.addEventListener('touchstart', e=>{
-  if(running) return;
-  const touch=e.touches[0];
-  // detect within timer bbox
-  const txt=formatTime(remaining), fs=fontSize;
-  ctx.font=`${fs}px Inter`; const tw=ctx.measureText(txt).width, th=fs;
-  const cx=x+tw/2, cy=y+th/2;
-  const cosA=Math.abs(Math.cos(angle)), sinA=Math.abs(Math.sin(angle));
-  const halfW=(tw*cosA+th*sinA)/2, halfH=(tw*sinA+th*cosA)/2;
-  const tx=touch.clientX, ty=touch.clientY;
-  if(tx>=cx-halfW && tx<=cx+halfW && ty>=cy-halfH && ty<=cy+halfH){
-    touchStartX=tx; initialRemaining=remaining;
-  }
-});
-canvas.addEventListener('touchmove', e=>{
-  if(touchStartX===null) return;
-  e.preventDefault();
-  const tx=e.touches[0].clientX;
-  const delta=Math.floor((tx-touchStartX)/20); // 20px per sec
-  remaining=Math.max(0, initialRemaining+delta);
-});
-canvas.addEventListener('touchend', e=>{ touchStartX=null; });
+// swipe
+canvas.addEventListener('touchstart',e=>{if(running)return;const t=e.touches[0],mx=t.clientX,my=t.clientY;const cx=x+tw/2,cy=y+th/2;const cosA=Math.abs(Math.cos(angle)),sinA=Math.abs(Math.sin(angle));const hW=(tw*cosA+th*sinA)/2,hH=(tw*sinA+th*cosA)/2; if(mx>=cx-hW&&mx<=cx+hW&&my>=cy-hH&&my<=cy+hH){touchStartX=mx;initRemaining=remaining;}});
+canvas.addEventListener('touchmove',e=>{if(touchStartX===null)return;e.preventDefault();const tx=e.touches[0].clientX;const delta=Math.floor((tx-touchStartX)/20);remaining=Math.max(0,initRemaining+delta);updateTxt();});
+canvas.addEventListener('touchend',()=>{touchStartX=null;});
 
-// Movement & visuals
-let x=100,y=100,dx=2,dy=2; const SPEED_UP=1;
-const fontSize=100; let angle=0, angularVelocity=0.005;
-const trail=[], TRAIL_DURATION=2, TRAIL_SAMPLE=0.05; let lastTrail=0;
-let glitchTime=0, glitchChance=0.02, glitchDuration=5;
-// Second text
-const text2='project initium 2.0'; let x2=200,y2=200,dx2=3,dy2=2.5; const fontSize2=40;
+// movement
+let x=100,y=100,dx=2,dy=2;
+let angle=0,av=0.005;
+const SPEED=1;
+const trail=[],TRAIL_D=2,SAMPLE=0.05;let last=0;
+let glitch=0,glitchC=0.02,glitchD=5;
 
-function formatTime(sec){ const m=String(Math.floor(sec/60)).padStart(2,'0'); const s=String(sec%60).padStart(2,'0'); return`${m}:${s}`; }
+// second text
+const text2='project initium 2.0';let x2=200,y2=200,dx2=3,dy2=2.5,fontSize2=40,tw2=0,th2=fontSize2;
+function update2(){ctx.font=`${fontSize2}px Inter`;tw2=ctx.measureText(text2).width;}
+update2();
 
-(function loop(){ const now=performance.now()/1000; angle+=angularVelocity;
-  // trail sample
-  if(now-lastTrail>TRAIL_SAMPLE){ const txt=formatTime(remaining); ctx.font=`${fontSize}px Inter`; const tw=ctx.measureText(txt).width, th=fontSize; trail.push({x,y,angle,hue:(now*60)%360,t:now,txt,tw,th}); lastTrail=now; }
-  while(trail.length&&now-trail[0].t>TRAIL_DURATION)trail.shift();
+function loop(){
+  const now=performance.now()/1000;angle+=av;
+  // sample trail
+  if(now-last>SAMPLE){trail.push({x,y,angle,hue:(now*60)%360,t:now,txt,tw,th});last=now;}
+  while(trail.length&&now-trail[0].t>TRAIL_D)trail.shift();
+
   // clear
   ctx.clearRect(0,0,W,H);
-  ctx.textBaseline='top';
+
   // draw blurred trail
-  ctx.filter='blur(2px)';
-  for(const seg of trail){ const age=now-seg.t,alpha=1-age/TRAIL_DURATION; ctx.save(); ctx.translate(seg.x+seg.tw/2,seg.y+seg.th/2); ctx.rotate(seg.angle); ctx.font=`${fontSize}px Inter`; ctx.fillStyle=`hsla(${seg.hue},100%,50%,${alpha})`; ctx.fillText(seg.txt,-seg.tw/2,-seg.th/2); ctx.restore(); }
-  ctx.filter='none';
-  // main timer
-  const txt=formatTime(remaining); ctx.font=`${fontSize}px Inter`; const tw=ctx.measureText(txt).width, th=fontSize;
-  const cx=x+tw/2, cy=y+th/2; const cosA=Math.abs(Math.cos(angle)),sinA=Math.abs(Math.sin(angle));
-  const halfW=(tw*cosA+th*sinA)/2,halfH=(tw*sinA+th*cosA)/2;
-  // bounce
-  if(cx+halfW>=W&&dx>0){dx=-dx*SPEED_UP;angularVelocity=(Math.random()*0.04-0.02);} if(cx-halfW<=0&&dx<0){dx=-dx*SPEED_UP;angularVelocity=(Math.random()*0.04-0.02);} if(cy+halfH>=H&&dy>0){dy=-dy*SPEED_UP;angularVelocity=(Math.random()*0.04-0.02);} if(cy-halfH<=0&&dy<0){dy=-dy*SPEED_UP;angularVelocity=(Math.random()*0.04-0.02);} x+=dx; y+=dy;
+  ctx.save();ctx.filter='blur(2px)';
+  for(const s of trail){ctx.save();ctx.translate(s.x+s.tw/2,s.y+s.th/2);ctx.rotate(s.angle);ctx.font=`${fontSize}px Inter`;ctx.fillStyle=`hsla(${s.hue},100%,50%,${1-(now-s.t)/TRAIL_D})`;ctx.fillText(s.txt,-s.tw/2,-s.th/2);ctx.restore();}
+  ctx.restore();
+
+  // timer bounce
+  const cx=x+tw/2,cy=y+th/2;const cA=Math.abs(Math.cos(angle)),sA=Math.abs(Math.sin(angle));const hW=(tw*cA+th*sA)/2,hH=(tw*sA+th*cA)/2;
+  if((cx+hW>=W&&dx>0)||(cx-hW<=0&&dx<0)){dx=-dx*SPEED;av=(Math.random()*0.04-0.02);}if((cy+hH>=H&&dy>0)||(cy-hH<=0&&dy<0)){dy=-dy*SPEED;av=(Math.random()*0.04-0.02);}x+=dx;y+=dy;
+
   // glitch
-  if(glitchTime>0)glitchTime--;else if(Math.random()<glitchChance)glitchTime=glitchDuration;
-  ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);
-    ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowOffsetX=4;ctx.shadowOffsetY=4;
-    if(glitchTime>0){const off=(Math.random()*10)-5;ctx.fillStyle='rgba(255,0,0,0.7)';ctx.fillText(txt,-tw/2+off,-th/2);ctx.fillStyle='rgba(0,0,255,0.7)';ctx.fillText(txt,-tw/2-off,-th/2);} ctx.fillStyle='#000';ctx.fillText(txt,-tw/2,-th/2);
-    if(editing){const blink=Math.floor(now*2)%2; if(blink)ctx.fillRect(tw/2+5,-th/2+10,5,th-20);} ctx.shadowColor='transparent';ctx.restore();
-  // second text
-  ctx.save();ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowOffsetX=4;ctx.shadowOffsetY=4;ctx.font=`${fontSize2}px Inter`;ctx.fillStyle='#000'; const tw2=ctx.measureText(text2).width,th2=fontSize2;
-  if(x2+tw2>=W&&dx2>0)dx2=-dx2; if(x2<=0&&dx2<0)dx2=-dx2; if(y2+th2>=H&&dy2>0)dy2=-dy2; if(y2<=0&&dy2<0)dy2=-dy2; x2+=dx2; y2+=dy2;ctx.fillText(text2,x2,y2);ctx.shadowColor='transparent';ctx.restore();
+  if(glitch>0)glitch--;else if(Math.random()<glitchC)glitch=glitchD;
+
+  // draw timer
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(angle);ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowOffsetX=4;ctx.shadowOffsetY=4;
+  if(glitch>0){const off=(Math.random()*10)-5;ctx.fillStyle='rgba(255,0,0,0.7)';ctx.fillText(txt,-tw/2+off,-th/2);ctx.fillStyle='rgba(0,0,255,0.7)';ctx.fillText(txt,-tw/2-off,-th/2);}ctx.fillStyle='#000';ctx.fillText(txt,-tw/2,-th/2);
+  if(editing&&Math.floor(now*2)%2)ctx.fillRect(tw/2+5,-th/2+10,5,th-20);ctx.restore();
+
+  // second text bounce + draw
+  if((x2+tw2>=W&&dx2>0)||(x2<=0&&dx2<0))dx2=-dx2;
+  if((y2+th2>=H&&dy2>0)||(y2<=0&&dy2<0))dy2=-dy2;
+  x2+=dx2;y2+=dy2;
+  ctx.save();ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowOffsetX=4;ctx.shadowOffsetY=4;ctx.font=`${fontSize2}px Inter`;ctx.fillStyle='#000';ctx.fillText(text2,x2,y2);ctx.restore();
+
   requestAnimationFrame(loop);
-})();
+}
+loop();
 </script>
 </body>
 </html>
